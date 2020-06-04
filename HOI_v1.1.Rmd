@@ -1,0 +1,382 @@
+---
+title: "Evolutionary effects of HOI on patterns of species coexistence"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+require(deSolve) ## for integrating ordinary differential equations
+require(tidyverse) ## for efficient data manipulation & plotting
+require(cowplot) ## for arranging plots in a grid
+require(statmod)
+theme_set(theme_bw()) ## set basic plotting theme
+
+## error function
+erf <- function(x) 2*pnorm(x*sqrt(2))-1
+
+```
+
+
+
+```{r}
+plot_density <- function(dat) {
+  dat %>%
+    ggplot +
+    geom_line(aes(x=time, y=n, colour=as.factor(species))) +
+    scale_y_continuous(name="population density", limits=c(0, NA)) +
+    theme(legend.position="none") +ggtitle(dat$interaction) %>%
+    return
+}
+plot_snapshot <- function(dat, moment=0, limits=c(-1,1), res=1001) {
+  S <- dat %>% pull(species) %>% max ## number of species
+  traitaxis <- seq(limits[1], limits[2], l=res) ## sampling the trait axis
+  snap <- dat %>% filter(time==moment) %>% dplyr::select(-time) ## time = moment
+  traits <- expand.grid(species=1:S, trait=traitaxis) %>% as_tibble ## trait table
+  traits["density"] <- 0 ## add column for population densities
+  for (i in 1:S) {
+    v <- snap %>% filter(species==i) %>% dplyr::select(n, m, sigma)
+    traits$density[(traits$species==i)] <- v$n * ## trait normally distributed,
+      dnorm(traits$trait[(traits$species==i)], v$m, v$sigma) ## times density
+  }
+  
+  traits$density[traits$density<max(traits$density)/1e3] <- NA
+  landscape <- tibble(trait=traitaxis, r=0)  %>% ## phenotype-specific growth rates
+    mutate(r=1) %>% 
+    mutate(r=ifelse(r<=0, NA, r)) %>%
+    mutate(r=r*max(traits$density, na.rm=TRUE))
+  ggplot(traits) + ## generate plot
+    geom_line(aes(x=trait, y=density, colour=factor(species)), na.rm=TRUE) +
+    geom_ribbon(aes(x=trait, ymin=0, ymax=density, fill=factor(species)),
+                alpha=0.15, colour=NA) +
+    scale_x_continuous(name="trait value", limits=limits) +
+    scale_y_continuous(name="density", limits=c(0, NA)) +
+    theme(legend.position="none") %>%
+    return
+}
+
+
+plot_trait <- function(dat) {
+  dat %>%
+    ggplot +
+    geom_ribbon(aes(x=time, ymin=m-sigma, ymax=m+sigma,
+                    fill=as.factor(species)), alpha=0.15) +
+    geom_line(aes(x=time, y=m, colour=as.factor(species))) +
+    ylab("trait value") +
+    theme(legend.position="none") %>%
+    return
+}
+
+plot_all <- function(dat, moment=0, limits=c(-1,1), res=1001) {
+  cowplot::plot_grid(plot_density(dat), plot_trait(dat),
+                     plot_snapshot(dat, moment, limits, res),align="hv", ncol = 1) %>%
+    return
+}
+
+organize_results <- function(sol, pars) {
+  S <- length(pars$sigma) ## number of species
+  dat <- sol %>% as.data.frame %>% as_tibble ## convert to tibble
+  names(dat)[1] <- "time" ## name the first column "time"
+  names(dat)[2:(S+1)] <- paste0("n_", 1:S) ## name abundance columns (n_k)
+  names(dat)[(S+2):(2*S+1)] <- paste0("m_", 1:S) ## name trait mean columns
+  dat <- dat %>%
+    gather("variable", "v", 2:ncol(dat)) %>% ## normalize the data
+    separate(variable, c("type", "species"), sep="_") %>%
+    spread(type, v) %>% ## separate columns for densities n and trait means m
+    dplyr::select(time, species, n, m) %>% ## rearrange columns
+    mutate(species=as.integer(species), sigma=pars$sigma[species], omega=pars$omega,
+           h2=pars$h2[species],interaction= pars$interaction) ## add params
+  return(as_tibble(dat))}
+
+
+IntravarCV <- function(dat){
+  mus <- dat$m
+  d <- diff(mus)
+  cvs<- (sd(d)/mean(d))
+  
+  return(cvs)
+}
+
+# gaussian quadrature function for approximating triple integrals
+#takes into following values :
+#1. index: which keeps a track of i, j, or k index
+#2. m: vector of mean trait values
+#3. params : parameter lists
+#4. points: no. of nodes/points over which the gaussian quadrature is approximated.
+
+gausquad<-function(index,m,params,interaction,points){
+  S<-length(params$sigma)
+  temp2<-dat2<-array(dim=c(points))
+  
+  # if the supposed interaction model is for more than 2 species i.e., HOI then ->>
+  if(interaction=="HOI"){
+    H<-t<-array(dim=c(points,points,points))
+    temp1<-dat1<-array(dim=c(points,points))
+    
+    #nodes or points in the abscissa where the integral will be evaluated numerically
+    z1<-gauss.quad.prob(points, dist="normal", mu=m[index$i],sigma =params$sigma[index$i])$nodes # z
+    z2<-gauss.quad.prob(points,dist="normal", mu=m[index$j],sigma =params$sigma[index$j])$nodes # z'
+    z3<-gauss.quad.prob(points, dist="normal", mu=m[index$k],sigma =params$sigma[index$k])$nodes # z''
+    
+    #weights of the gaussian distribution given by mean trait value mu_i and its variance \sigma_i
+    w1<-gauss.quad.prob(points, dist="normal",mu=m[index$i],sigma =params$sigma[index$i])$weights #pi(z)
+    w2<-gauss.quad.prob(points,dist="normal", mu=m[index$j],sigma =params$sigma[index$k])$weights #pj(z')
+    w3<-gauss.quad.prob(points, dist="normal",mu=m[index$k],sigma =params$sigma[index$j])$weights #pk(z'')
+    
+    #nested loop for the integral goes over z,z' and z'' as:
+    for (i in 1: points){
+      for (j in 1:points){
+        
+        temp1[i,j]<-sum((0.5*(tanh((z1[i]-z2[j])/params$w)+1))*(0.5*(tanh((z2[j]-z3)/params$w)+1))*
+                          w1[i]*w2[j]*w3+
+                          (0.5*(tanh((z1[i]-z2[j])/params$w)+1))*(0.5*(tanh((z1[i]-z3)/params$w)+1))*
+                          w1[i]*w2[j]*w3)
+        
+        
+        dat1[i,j]<-sum((z1[i]-m[index$i])*(0.5*(tanh((z1[i]-z2[j])/params$w)+1))*(0.5*(tanh((z2[j]-z3)/params$w)+1))*
+                         w1[i]*w2[j]*w3 +
+                         (z1[i]-m[index$i])*(0.5*(tanh((z1[i]-z2[j])/params$w)+1))*(0.5*(tanh((z1[i]-z3)/params$w)+1))*
+                         w1[i]*w2[j]*w3)
+        
+      }
+      temp2[i]<-sum(temp1[i,])
+      dat2[i]<-sum(dat1[i,])
+    }
+    return(list(Hjk= sum(temp2), bjk = sum(dat2)) )
+    
+  }
+  
+  #if the supposed interaction model is pairwise in nature, then this follows ->>
+  else if (interaction =="pairwise"){
+    hij<-bij<-array(dim=c(points,points))
+    # print(index)
+    #nodes oir points in the abscissa where the integral will be evaluated numerically
+    z1<-gauss.quad.prob(points, dist = "normal", mu=m[index$r],sigma =params$sigma[index$r])$nodes #z'
+    z2<-gauss.quad.prob(points, dist = "normal", mu=m[index$l],sigma =params$sigma[index$l])$nodes #z''
+    
+    #weights of the gaussian distribution given by mean trait value mu_i and its variance \sigma_i
+    w1<-gauss.quad.prob(points, dist = "normal", mu=m[index$r],sigma =params$sigma[index$r])$weights #pi(z')
+    w2<-gauss.quad.prob(points, dist = "normal", mu=m[index$l],sigma =params$sigma[index$l])$weights #pj(z'')
+    
+    
+    #for the pairwise model however there are only two species interacting and hence i and j
+    #or in other words the integral goes over z and z'
+    for (i in 1: points){
+      temp2[i]<- sum( (0.5*( tanh((z1[i]-z2)/params$w)+1))*w1[i]*w2)
+      dat2[i]<- sum((z1[i]-m[index$i])*(0.5*(tanh((z1[i]-z2)/params$w)+1))*w1[i]*w2)
+    }
+    return(list(Hjk= sum(temp2), bjk = sum(dat2)) )
+    #return(list(Hjk= 0, bjk =0 ) )
+  }
+  
+}
+
+
+#main function for population and evolutionary trait dynamics
+#time: time intervals
+# x: state values
+#parms: parameter values
+eqs<- function(time, x, parms){
+  S<-parms$S
+  n <- x[1:S] ## species densities
+  m<-x[(S+1):(2*S)] 
+  if(parms$interaction == "HOI"){
+    hijk<-bijk<-array(dim=c(S,S,S))
+    h<-b<-array(dim=c(S,S))
+    for(i in 1:S){
+      for(j in 1:S){
+        for(k in 1:S){
+          indices<-list(i=i,j=j,k=k) #indices used to go over z, z' and z''
+          
+          # print(indices)
+          hat<-gausquad(index=indices,m=m, params = parms,interaction=parms$interaction, points =5) # gaussian quad function approximating the integrals
+          hijk[i,j,k]<-round(hat$Hjk,3)
+          bijk[i,j,k]<-round(hat$bjk,3)
+        }
+        h[i,j]<- (hijk[i,j,]%*%n)
+        b[i,j]<- (bijk[i,j,]%*%n)  
+        
+      }
+    }
+    n[n<parms$threshold]<-0  #cut-off for n if they go below a threshold value of 1e-9
+    
+    dndt<- n*(sum(parms$g*(parms$theta^2-
+                             2*m*parms$theta+parms$sigma^2+
+                             m^2)*n)*2*h%*%n)/(sum(n)*sum(n)*sum(n)) - n*parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+m^2)
+    
+    dmdt<-parms$h2*sum(parms$g*(parms$theta^2-
+                                  2*m*parms$theta+parms$sigma^2+
+                                  m^2)*n)*2*b%*%n/(sum(n)*sum(n)*sum(n))-
+      parms$h2*2*parms$g*m^2*(m-parms$theta)
+    
+    return(list(c(dndt,dmdt)))
+  }
+  
+  # if the interaction model is pairwise in nature
+  else if(parms$interaction=="pairwise"){
+    t_m<-B<-array(dim = c(S,S))
+    for(r in 1:S){
+      for(l in 1:S){
+        indices<-list(r=r,l=l,k=0)
+        temp<-gausquad(index=indices,m = m,params=parms,interaction=parms$interaction, points=5)
+        
+        t_m[r,l]<-temp$Hjk
+        B[r,l]<-temp$bjk
+      }
+    }
+    
+    
+    n[n<parms$threshold]<-0 
+    dndt<- n*(sum(parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+ m^2)*n)*(2*t_m%*%n/(sum(n)*sum(n)))) -n*parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+m^2)
+    
+    #dndt<-0
+    dmdt<-parms$h2*sum(parms$g*(parms$theta^2-
+                                  2*m*parms$theta+parms$sigma^2+
+                                  m^2)*n)*2*B%*%n/(sum(n)*sum(n))-parms$h2*2*parms$g*m^2*(m-parms$theta)
+    
+    return(list(c(dndt,dmdt)))
+  }
+}
+
+
+```
+
+
+We can now run the model for $10^7$ time units. The code below generates a plot, where the top panel shows population densities in time, the second the trait means in time, and the third the final trait distributions of the species.
+
+First we show for pairwise species competition model
+
+```{r pairwise, fig.align="center", fig.height=6.0, fig.width=4.5, message=FALSE, warning=FALSE, out.width="90%"}
+set.seed(54321) ## set random seed (for reproducibility)
+# number of species
+S <- 10
+x0 <- rep(runif(S))
+x0 <- x0/sum(x0)
+sum(x0)
+
+m<-runif(S,-0.1,0.1) # initial random trait values
+sigma<-runif(S,0.002,0.005) #trait vairance
+w=1 # parameter that captures the strength of competition
+h2<-runif(S,0.15,0.15) #heritabilies of mean trait value
+g<-0.001 #strength in the mortality curve
+theta<-0 #optimum mortality value
+interaction = "pairwise" #pairwise or HOI
+
+pars<-list( S=S,h2=h2,w=w,sigma=sigma,theta=theta, g=g,interaction=interaction, threshold = 1e-9) #
+ic <- c(x0,m) #initial density values
+times <- seq(0, 1e9, length=1000)
+
+ode(func=eqs, y=ic, parms=pars, times=times) %>% 
+  organize_results(pars) %>% plot_all(1e9)
+```
+
+
+
+
+
+We now show for the HOI evolutionary model for time of $10^6$ time points for $5$ species and modest strength in competition and low strength in the mortality curve captured by $g$ in the following script.
+
+
+```{r HOI, fig.align="center", fig.height=6.0, fig.width=4.5, message=FALSE, warning=FALSE, out.width="90%"}
+set.seed(54321) ## set random seed (for reproducibility)
+# number of species
+S <- 10
+x0 <- rep(runif(S))
+x0 <- x0/sum(x0)
+
+
+m<-runif(S,-0.1,0.1) # initial random trait values
+sigma<-runif(S,0.02,0.05) #trait vairance
+w=1 # parameter that captures the strength of competition
+h2<-runif(S,0.15,0.15) #heritabilies of mean trait value
+g<-0.001 #strength in the mortality curve
+theta<-0 #optimum mortality value
+interaction = "HOI" #pairwise or HOI
+
+
+pars<-list( S=S,h2=h2,w=w,sigma=sigma,theta=theta, g=g,interaction=interaction, threshold = 1e-9) #
+ic <- c(x0,m) #initial density values
+times <- seq(0, 1e7, length=500)
+
+ode(func=eqs, y=ic, parms=pars, times=times) %>% 
+  organize_results(pars) %>% 
+  plot_all(1e7)
+```
+
+
+
+```{r ind variation, fig.align="center", fig.height=3, fig.width=4, message=FALSE, warning=FALSE, out.width="50%"}
+
+set.seed(54321) ## set random seed (for reproducibility)
+# number of species
+S <- 15
+x0 <- rep(runif(S))
+x0 <- x0/sum(x0)
+
+
+m<-runif(S,-1,1) # initial random trait values
+sigma<-runif(S,0.0001,0.0005) #trait vairance
+w=1 # parameter that captures the strength of competition
+h2<-runif(S,0.15,0.15) #heritabilies of mean trait value
+g<-0.0005 #strength in the mortality curve
+theta<-0 #optimum mortality value
+interaction = "pairwise" #pairwise or HOI
+
+pars<-list( S=S,h2=h2,w=w,sigma=sigma,theta=theta, g=g,interaction=interaction, threshold = 1e-9) #
+ic <- c(x0,m) #initial density values
+tmax=1e7
+times <- seq(0, tmax, length=1000)
+
+## set up factorial numerical experiment, with seven different intraspecific
+## std dev levels, and five replicates for each
+fact <- expand.grid("sigma"= c("low","medium","high"),
+                    "random_seed"=4127+(1:20)*100) %>%
+  as_tibble %>% ## convert data frame to tibble
+  mutate(`sp_richness`=0,
+         `CV_Trait`= 0)
+
+
+for (r in 1:nrow(fact)) { ## for each parameterization:
+  ## set up simulation with intraspecific variation
+  if(fact$sigma[r] == "low"){ sigma = runif(S, 0.0004,0.003)}
+  else if(fact$sigma[r] == "medium") {sigma= runif(S,0.003,0.009) }
+  else if(fact$sigma[r] == "high") {sigma = runif(S, 0.01,0.05)}
+  
+  pars<-list( S=S,h2=h2,w=w,sigma=sigma,theta=theta, 
+            g=g,interaction=interaction, threshold = 1e-9) #
+                 #rep(fact1$sigma[r], S)+0.0003*runif(S, -1, 1))
+ 
+  muinit <- runif(S, -0.5, 0.5) ## initial species trait means
+  sol <- ode(func=eqs, y=c(x0,m), parms=pars, times=times) %>%
+    organize_results(pars) %>% ## solve ODEs & put results in tidy table
+    filter(time==tmax) %>% ## keep data for only the final point in time
+    filter(n>1e-9) ## keep only those species with density above a threshold
+  fact$sp_richness[r]=nrow(sol)
+  fact$CV_Trait[r] = IntravarCV(sol)
+  print(r)
+
+}
+
+plot.rich<-ggplot(data= fact, aes(y = sp_richness,
+                                  x = sigma, color= sigma )) +
+  geom_boxplot(alpha=0.5)+
+  geom_point(pch = 16,alpha=0.5, position = position_jitterdodge())+ 
+  ylab("Species richness")+
+  theme_classic()+ylim(c(0,16))+xlab("")+
+  theme(plot.title = element_text(size = 10,   face = "bold"),
+        text = element_text(size = 10 ),
+        axis.title = element_text(face="bold"),legend.position = "none") 
+plot.rich
+
+
+plot.cv<-ggplot(data= fact, aes(y = CV_Trait,
+                                  x = sigma, color= sigma )) +
+  geom_boxplot(alpha=0.5)+
+  geom_point(pch = 16,alpha=0.5, position = position_jitterdodge())+ 
+  ylab("Species richness")+
+  theme_classic()+xlab("")+ylim(c(-200,2000))+
+  theme(plot.title = element_text(size = 10,   face = "bold"),
+        text = element_text(size = 10 ),
+        axis.title = element_text(face="bold"),legend.position = "none") 
+plot.cv
+
+```
