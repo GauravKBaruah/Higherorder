@@ -1,0 +1,298 @@
+
+\documentclass[11pt]{article}
+
+\usepackage{graphicx, amsmath, amsfonts, amssymb, amsxtra, bm}
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage[protrusion=true, expansion=true]{microtype}
+\usepackage[authoryear]{natbib}
+\usepackage[font={small}, bf]{caption}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{lmodern}
+
+\newcommand{\ud}{\text{d}}
+\newcommand{\mat}[1]{\bm{#1}}
+\newcommand{\cov}{\text{cov}}
+\newcommand{\rem}[1]{\textcolor{red}{\textrm{#1}}}
+\newcommand{\citeapos}[1]{\citeauthor{#1}'s (\citeyear{#1})}
+\let\originalleft\left
+  \let\originalright\right
+\renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}
+  \renewcommand{\right}{\aftergroup\egroup\originalright}
+\newcommand{\FdL}[1]{\textcolor{Cerulean}{\textrm{#1}}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\thetable}{S\arabic{table}}
+
+
+\bibpunct{(}{)}{,}{a}{}{,}
+\clubpenalty = 10000
+\widowpenalty = 10000
+\graphicspath{{../../../figures/}}
+
+
+\begin{document}
+
+\title{Higher-order interactions and trait evolution}
+\author{}
+\date{}
+
+\maketitle
+
+
+\section{The original model} \label{sec:model_original}
+
+Our starting point is the model of \cite{Grillietal2017} and \cite{Maynardetal2019}. We have a saturated community with a finite number of sites, and if an individual dies in a given site, its place is filled by the offspring of another individual. Let $W_{ij}^{(n)}$ be the rate that species $j$ loses an individual while species $i$ gains one, assuming that $n$ candidate offspring compete to fill the site. In the deterministic limit, the dynamics of the proportion $x_i$ of individuals of species $i$ is
+\begin{equation}
+  \label{eq:Wbasic}
+  \frac{\ud x_i}{\ud t} = \sum_{j=1}^S
+  \left( W_{ij}^{(n)} - W_{ji}^{(n)} \right) ,
+\end{equation}
+where $S$ is the number of species. The rate of species $j$ losing individuals is its mortality rate $m_j$ times its frequency $x_j$. Denoting the rate of recruitment by species $i$ assuming $n$ individuals compete for an empty site, we have $W_{ij}^{(n)} = d_j x_j q_i^{(n)}$. This rate is generated recursively for arbitrary $n$:
+\begin{equation}
+  \label{eq:qinbasic}
+  q_i^{(n)} = q_i^{(1)} \sum_{k=1}^S H_{ik} q_k^{(n-1)} +
+  q_i^{(n-1)} \sum_{k=1}^S H_{ik} q_k^{(1)}
+\end{equation}
+with the start of the recursion $q_i^{(1)}$ given by
+\begin{equation}
+  \label{eq:qi1basic}
+  q_i^{(1)} = \frac{f_i x_i}{\sum_{l=1}^S f_l x_l} .
+\end{equation}
+Here $H_{ik}$ is the pairwise probability that species $i$ wins against $k$ when competing for the same site, and $f_i$ is species $i$'s fecundity. From here on, we denote the community average fecundity $\sum_k f_k x_k$ by $F$ and the community average mortality $\sum_k m_k x_k$ by $M$.
+
+The dynamics of $x_i$ can now be written
+\begin{equation}
+  \label{eq:xdot_basic}
+  \begin{split}
+    \frac{\ud x_i}{\ud t} &= \sum_{j=1}^S \left( W_{ij}^{(n)} - W_{ij}^{(n)}
+    \right) = \sum_{j=1}^S \left( m_j x_j q_i^{(n)} - m_i x_i q_j^{(n)} \right)
+    \\ &= M q_i^{(n)} - m_i x_i \underbrace{\sum_{j=1}^S q_j^{(n)}}_1
+    = M q_i^{(n)} - m_i x_i,
+  \end{split}
+\end{equation}
+where we used the fact that the probabilities $q_i^{(n)}$ sum to one. For example, with $n=1$, we have
+\begin{equation}
+  \label{eq:xdot_qi1_basic}
+  \frac{\ud x_i}{\ud t} = M q_i^{(1)} - m_i x_i = M \frac{f_i x_i}{F} -
+  m_i x_i = x_i \left( \frac{M f_i}{F} - m_i \right) ,
+\end{equation}
+where coexistence is impossible: the species with the best $f_i$ and $m_i$ values achieves monodominance. In turn, for $n=2$ we have
+\begin{equation}
+  \label{eq:qi2_basic}
+  q_i^{(2)} = q_i^{(1)} \sum_{k=1}^S H_{ik} q_k^{(1)} + q_i^{(1)}
+  \sum_{k=1}^S H_{ik} q_k^{(1)} = \frac{f_i x_i}{F} \sum_{k} 2 H_{ik}
+  \frac{f_k x_k}{F} ,
+\end{equation}
+and therefore
+\begin{equation}
+  \label{eq:xdot_qi2_basic}
+  \frac{\ud x_i}{\ud t} = M q_i^{(2)} - m_i x_i =
+  x_i \left( \frac{M f_i}{F}\sum_{k=1}^S 2 H_{ik}\frac{f_k x_k}{F} - m_i\right) .
+\end{equation}
+Finally, when $n=3$ (the simplest true higher-order interaction model), then
+\begin{equation}
+  \label{eq:qi3_basic}
+  \begin{split}
+    q_i^{(3)} &= q_i^{(1)} \sum_{k=1}^S H_{ik} q_k^{(2)} + q_i^{(2)}
+    \sum_{k=1}^S H_{ik} q_k^{(1)}
+    \\ &= \frac{f_i x_i}{F} \sum_{k=1}^S 2 H_{ik} \frac{f_k x_k}{F}
+    \sum_{l=1}^S H_{kl} \frac{f_l x_l}{F} + 2 \frac{f_i x_i}{F} \sum_{l} H_{il}
+    \frac{f_l x_l}{F} \sum_{k=1}^S H_{ik} \frac{f_k x_k}{F}
+    \\ &= \frac{f_i x_i}{F} \sum_{k=1}^S \sum_{l=1}^S 2 \left( H_{ik} H_{kl} +
+      H_{ik}H_{il} \right) \frac{f_k x_k}{F} \frac{f_l x_l}{F} ,
+  \end{split}
+\end{equation}
+and so
+\begin{equation}
+  \label{eq:xdot_qi3_basic}
+  \frac{\ud x_i}{\ud t} = M q_i^{(3)} - m_i x_i
+  = x_i \left( \frac{M f_i}{F} \sum_{k=1}^S \sum_{l=1}^S 2 \left( H_{ik} H_{kl} +
+      H_{ik}H_{il} \right) \frac{f_k x_k}{F} \frac{f_l x_l}{F} - m_i \right) .
+\end{equation}
+
+In Eqs.~\ref{eq:xdot_qi1_basic}, \ref{eq:xdot_qi2_basic}, and \ref{eq:xdot_qi3_basic}, the quantity in parentheses is the per capita growth rate of species $i$. This would be obvious if $x_i$ was the abundance of species $i$. However, in this description, $x_i$ is not an abundance, but a frequency: due to the zero-sum assumption (all of a finite number of sites are filled, therefore the total number of individuals is constant), it is sufficient to express the proportion of sites occupied by the species. Due to this zero-sum assumption, the expressions in parentheses are still the per capita growth rates. Denoting the total number of sites by $N$, we have $x_i = n_i / N$, where $n_i$ is the absolute population abundance of species $i$. The per capita growth rates are defined by $\ud n_i / \ud t = n_i r_i$. But $\ud x_i / \ud t$ is simply $\ud (n_i/N) / \ud t = N^{-1} \ud n_i / \ud t$, since $N$ is a constant. Therefore, dividing both sides of $\ud n_i / \ud t = n_i r_i$ by $N$, we get $\ud x_i / \ud t = x_i r_i$. As seen, the quantity multiplying $x_i$ on the right hand side is still the per capita growth rate (to be expressed as a function of the $x_i$ instead of the $n_i$). This means that, by the general Eq.~\ref{eq:xdot_basic}, the per capita growth rate $r_i$ of species $i$ is
+\begin{equation}
+  \label{eq:ri_basic}
+  r_i = M \frac{q_i^{(n)}}{x_i} - m_i .
+\end{equation}
+
+
+\section{A quantitative genetic version of the model} \label{sec:model_QG}
+
+Here we extend this framework by assuming that species differ in some quantitative trait(s) determining the competitive relations encoded in $H_{ik}$. Trait distributions $p_i(z)$ are normal:
+\begin{equation}
+  \label{eq:pnorm}
+  p_i(z) = \frac{1}{\sigma_i \sqrt{2\pi}}
+  \exp \left( - \frac{(z-\mu_i)^2}{2\sigma_i^2} \right) ,
+\end{equation}
+and their inheritance obeys the infinitesimal model of quantitative genetics \cite{Bulmer1974, BarabasDAndrea2016, Bartonetal2017}. Here $\mu_i$ is the mean trait of species $i$, and $\sigma_i^2$ is its trait variance (assumed to be constant due to the infinitesimal model). Since $p_i(z)$ is a normalized distribution, the actual frequency of species $i$'s individuals with trait value $z$ are given by $x_i p_i(z)$.
+
+We can now write a dynamical equation for the rate at which species $i$'s trait $z$ changes:
+\begin{equation}
+  \label{eq:xzdot_basic}
+  \frac{\ud x_i(z)}{\ud t} = \mathcal{M} q_i^{(n)}(z) - m(z) p_i(z) x_i ,
+\end{equation}
+where we defined $\mathcal{M} = \sum_k \int m(z) x_k p_k(z) \,\ud z$ (similarly, we will use $\mathcal{F} = \sum_k \int f(z) x_k p_k(z) \,\ud z$), and $q_i^{(n)}(z)$ is the rate of recruiting individuals of species $i$ with phenotype $z$, assuming $n$ individuals compete to fill a site. This again is built recursively:
+\begin{equation}
+  \label{eq:qizn}
+  q_i^{(n)}(z) = q_i^{(1)}(z) \int \sum_{k=1}^S H(z,z') q_k^{(n-1)}(z') \,\ud z' +
+  q_i^{(n-1)}(z) \int \sum_{k=1}^S H(z,z') q_k^{(1)}(z') \,\ud z' ,
+\end{equation}
+where the recursion starts with
+\begin{equation}
+  \label{eq:qiz1}
+  q_i^{(1)} = \frac{1}{\mathcal{F}} f(z) p_i(z) x_i .
+\end{equation}
+Here $H(z,z')$ is the probability that an individual with trait $z$ beats one with trait $z'$. It is independent of species identity, expression the assumption that individuals interact only through their trait values (no hidden species differences). It follows that $H(z,z') + H(z',z) = 1$. For instance, if the trait $z$ is related to a competitive hierarchy with higher values of $z$ being superior competitors, then
+\begin{equation}
+  \label{eq:H_example}
+  H(z,z') = \frac{1}{2} \left[ \text{tanh}\left(\frac{z-z'}{w}\right) + 1\right]
+\end{equation}
+is a reasonable sigmoid form satisfying $H(z,z') + H(z',z) = 1$, with $w$ being a width parameter governing how quickly the function transitions from the competitively inferior to superior regime.
+
+To scale Eq.~\ref{eq:xzdot_basic} up from the level of individual phenotypes to species, we integrate across $z$. On the left hand side, we get
+\begin{equation}
+  \label{eq:xzdot_lhs}
+  \int \frac{\ud x_i(z)}{\ud t} \,\ud z =
+  \frac{\ud}{\ud t} \int x_i p_i(z) \,\ud z =
+  \frac{\ud}{\ud t} x_i \underbrace{\int p_i(z) \,\ud z}_{1} =
+  \frac{\ud x_i}{\ud t} ,
+\end{equation}
+where the integral went over a normal distribution (Eq.~\ref{eq:pnorm}) and therefore evaluated to one. This, together with integrating the right hand side of Eq.~\ref{eq:xzdot_basic}, yields
+\begin{equation}
+  \label{eq:xdot}
+  \frac{\ud x_i}{\ud t} = \int \left[ \mathcal{M} q_i^{(n)}(z) -
+    m(z) p_i(z) x_i \right] \,\ud z .
+\end{equation}
+For instance, with $n=1$, we have
+\begin{equation}
+  \label{eq:xdot_n1}
+  \begin{split}
+    \frac{\ud x_i}{\ud t} &=
+    \int \left[ \mathcal{M} q_i^{(1)}(z) - m(z) p_i(z) x_i \right] \,\ud z =
+    \int \left[ \frac{\mathcal{M}}{\mathcal{F}} f(z) p_i(z) x_i -
+      m(z) p_i(z) x_i \right] \,\ud z
+    \\ &= x_i \int \left[ \frac{\mathcal{M}}{\mathcal{F}} f(z) - m(z) \right]
+    p_i(z) \,\ud z .
+  \end{split}
+\end{equation}
+With $n=2$, we first obtain, using Eq.~\ref{eq:qizn},
+\begin{equation}
+  \label{eq:qiz_n2}
+  q_i^{(2)}(z) = \frac{f(z) p_i(z) x_i}{\mathcal{F}}
+  \int \sum_{k=1}^S 2 H(z,z') \frac{f(z') p_k(z') x_k}{\mathcal{F}} \,\ud z' .
+\end{equation}
+Subtituting this into Eq.~\ref{eq:xdot}:
+\begin{equation}
+  \label{eq:xdot_n2}
+  \frac{\ud x_i}{\ud t} = x_i \int \left[ \frac{\mathcal{M} f(z)}{\mathcal{F}}
+    \int \sum_{k=1}^S 2 H(z,z') \frac{f(z') p_k(z') x_k}{\mathcal{F}} \,\ud z' -
+    m(z) \right] p_i(z) \,\ud z .
+\end{equation}
+And, for $n=3$,
+\begin{equation}
+  \label{eq:qiz_n3_1}
+  \begin{split}
+    q_i^{(3)}(z) &= \frac{f(z) p_i(z) x_i}{\mathcal{F}} \int \sum_{k=1}^S
+    2 H(z,z') \frac{f(z') p_k(z') x_k}{\mathcal{F}} \int \sum_{l=1}^S H(z',z'')
+    \frac{f(z'') p_l(z'') x_l}{\mathcal{F}} \,\ud z' \,\ud z''
+    \\ &+ \frac{f(z) p_i(z) x_i}{\mathcal{F}} \int \sum_{k=1}^S
+    2 H(z,z') \frac{f(z') p_k(z') x_k}{\mathcal{F}} \int \sum_{l=1}^S H(z,z'')
+    \frac{f(z'') p_l(z'') x_l}{\mathcal{F}} \,\ud z' \,\ud z'' ,
+  \end{split}
+\end{equation}
+which can be written more simply as
+\begin{equation}
+  \label{eq:qiz_n3}
+  \begin{split}
+    q_i^{(3)}(z) &= \frac{f(z) p_i(z) x_i}{\mathcal{F}} \sum_{k=1}^S \sum_{l=1}^S
+    \iint 2 \left[ H(z,z')H(z',z'') + H(z,z')H(z,z'') \right] \\ &\times
+    \frac{f(z') p_k(z') x_k}{\mathcal{F}} \frac{f(z'') p_l(z'') x_l}{\mathcal{F}}
+    \,\ud z' \,\ud z'' .
+  \end{split}
+\end{equation}
+The dynamics, from Eq.~\ref{eq:xdot}, then reads
+\begin{equation}
+  \label{eq:xdot_n3}
+  \begin{split}
+    \frac{\ud x_i}{\ud t} &= x_i \int\bigg\{\frac{\mathcal{M} f(z)}{\mathcal{F}}
+    \sum_{k=1}^S \sum_{l=1}^S \iint 2 \left[ H(z,z')H(z',z'') + H(z,z')H(z,z'')
+    \right] \\ &\times \frac{f(z') p_k(z') x_k}{\mathcal{F}}
+    \frac{f(z'') p_l(z'') x_l}{\mathcal{F}} \,\ud z' \,\ud z'' - m(z) \bigg\}
+    p_i(z) \,\ud z .
+  \end{split}
+\end{equation}
+
+As before, one can define phenotype-specific per capita growth rates $r(z)$, by writing Eq.~\ref{eq:xdot} in the form
+\begin{equation}
+  \label{eq:ri_def}
+  \frac{\ud x_i}{\ud t} = x_i \int r(z) p_i(z) \,\ud z .
+\end{equation}
+comparing this expression with Eq.~\ref{eq:xdot}, the $n$th-order growth rates $r^{(n)}(z)$ must be defined as
+\begin{equation}
+  \label{eq:rz}
+  r^{(n)}(z) = \mathcal{M} \frac{q_i^{(n)}(z)}{p_i(z) x_i} - m(z) .
+\end{equation}
+Since $q_i^{(n)}(z)$ depended on the identity of species $i$ only through the factor $x_i p_i(z)$, this growth rate is now independent of species identity. For $n=1$, $2$, and $3$, the parentheses of Eqs.~\ref{eq:xdot_n1}, \ref{eq:xdot_n2}, and \ref{eq:xdot_n3} contain these growth rates. Now the model can be converted into a standard eco-evolutionary one using the standard equations
+\begin{align}
+  \label{eq:n}
+  \frac{\ud x_i}{\ud t} &= x_i \int r^{(n)}(z) p_i(z) \,\ud z , \\
+  \label{eq:m}
+  \frac{\ud \mu_i}{\ud t} &= h_i^2 \int (z-\mu_i) r^{(n)}(z) p_i(z) \,\ud z
+\end{align}
+\cite{BarabasDAndrea2016}, where $0 \le h_i^2 \le 1$ is the heritability of the trait for species $i$.
+
+
+\subsection{Parametrizing the HOI model}
+
+ For simplicity purposes we model fecundity to be constant and mortality $m(z)$ to be a increasing function of $z$ such that 
+
+\begin{equation}
+\label{eq:mort}
+m(z) = g(z-\theta)^2 
+\end{equation}
+
+Here $g$ captures the strength of mortality curve and $\theta$ is the optimal trait value that leads to low mortality. Thus we can define $\mathcal{M} = \sum_k \int m(z) x_k p_k(z) \,\ud z$ which gives:
+
+\begin{equation}
+\label{eq:Mort}
+\mathcal{M} = \sum_k x_k g (\theta^2- 2\mu_{k}\theta+ \mu_{k}^2+ \sigma_{k}^2) \, 
+\end{equation}
+And $ \mathcal{F} = \sum_k x_k$.
+
+Thus, equation ~\ref{eq:xdot_n3} can be written as:
+
+\begin{equation}
+\label{eq:xdot_n4}
+\begin{split}
+\frac{\ud x_i}{\ud t} &= x_i \int\bigg\{\frac{ \sum_k x_k g (\theta^2- 2\mu_{k}\theta+ \mu_{k}^2+ \sigma_{k}^2) }{\mathcal{F}}
+\sum_{k=1}^S \sum_{l=1}^S \iint 2 \left[ H(z,z')H(z',z'') + H(z,z')H(z,z'')
+\right] \\ &\times \frac{ p_k(z') x_k}{\mathcal{F}}
+\frac{p_l(z'') x_l}{\mathcal{F}} \,\ud z' \,\ud z'' \bigg\} p_i(z) \,\ud z - 
+ x_{i} g (\theta^2- 2\mu_{k}\theta+ \mu_{k}^2+ \sigma_{k}^2).
+\end{split}
+\end{equation}
+
+
+
+And the evolutionary dynamics of the mean trait of species $i$ could be then written as :
+
+\begin{equation}
+\label{eq:xdot_n5}
+\begin{split}
+ \frac{\ud \mu_i}{\ud t} &=  h_i^2 \int\bigg\{\frac{ \sum_k x_k g (\theta^2- 2\mu_{k}\theta+ \mu_{k}^2+ \sigma_{k}^2) }{\mathcal{F}}
+\sum_{k=1}^S \sum_{l=1}^S \iint (z-\mu_{i} ) 2 \left[ H(z,z')H(z',z'') + H(z,z')H(z,z'')
+\right] \\ &\times \frac{ p_k(z') x_k}{\mathcal{F}}
+\frac{p_l(z'') x_l}{\mathcal{F}} \,\ud z' \,\ud z''\bigg\} p_i(z) \,\ud z - 
+ 2 g \mu_{i}^2 (\mu- \theta )
+\end{split}
+\end{equation}	
+
+For the simulations, $z$ goes from -0.5 to 0.5 with $\theta = 0 $ and $g$ which defines the strength of mortality curve.
+
+
+\bibliography{bib_HOI}
+\bibliographystyle{elsarticle-harv}
+\end{document}
+
