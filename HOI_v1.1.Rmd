@@ -162,9 +162,9 @@ gausquad<-function(index,m,params,interaction,points){
     #or in other words the integral goes over z and z'
     for (i in 1: points){
       temp2[i]<- sum( (0.5*( tanh((z1[i]-z2)/params$w)+1))*w1[i]*w2)
-      dat2[i]<- sum((z1[i]-m[index$i])*(0.5*(tanh((z1[i]-z2)/params$w)+1))*w1[i]*w2)
+      dat2[i]<- sum((z1[i]-m[index$r])*(0.5*(tanh((z1[i]-z2)/params$w)+1))*w1[i]*w2)
     }
-    return(list(Hjk= sum(temp2), bjk = sum(dat2)) )
+    return(list(jk= sum(temp2), bk = sum(dat2)) )
     #return(list(Hjk= 0, bjk =0 ) )
   }
   
@@ -201,12 +201,12 @@ eqs<- function(time, x, parms){
     
     dndt<- n*(sum(parms$g*(parms$theta^2-
                              2*m*parms$theta+parms$sigma^2+
-                             m^2)*n)*2*h%*%n)/(sum(n)*sum(n)*sum(n)) - n*parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+m^2)
+                             m^2)*n)*2*h%*%n)/((sum(n)*sum(n)*sum(n))) - n*parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+m^2)
     
     dmdt<-parms$h2*sum(parms$g*(parms$theta^2-
                                   2*m*parms$theta+parms$sigma^2+
                                   m^2)*n)*2*b%*%n/(sum(n)*sum(n)*sum(n))-
-      parms$h2*2*parms$g*m^2*(m-parms$theta)
+      parms$h2*2*parms$g*parms$sigma^2*(m-parms$theta)
     
     return(list(c(dndt,dmdt)))
   }
@@ -217,23 +217,23 @@ eqs<- function(time, x, parms){
     for(r in 1:S){
       for(l in 1:S){
         indices<-list(r=r,l=l,k=0)
-        temp<-gausquad(index=indices,m = m,params=parms,interaction=parms$interaction, points=5)
+        temp<-gausquad(index=indices,m = m,params=parms,interaction=parms$interaction, points=7)
         
-        t_m[r,l]<-temp$Hjk
-        B[r,l]<-temp$bjk
+        t_m[r,l]<-temp$jk
+        B[r,l]<-temp$bk
       }
     }
     
     
     n[n<parms$threshold]<-0 
-    dndt<- n*(sum(parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+ m^2)*n)*(2*t_m%*%n/(sum(n)*sum(n)))) -n*parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+m^2)
+    dndt1<- n*(sum(parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+ m^2)*n)*(2*t_m%*%n/(sum(n)*sum(n)))) -n*parms$g*(parms$theta^2-2*m*parms$theta+parms$sigma^2+m^2)
     
     #dndt<-0
-    dmdt<-parms$h2*sum(parms$g*(parms$theta^2-
+    dmdt1<-parms$h2*sum(parms$g*(parms$theta^2-
                                   2*m*parms$theta+parms$sigma^2+
-                                  m^2)*n)*2*B%*%n/(sum(n)*sum(n))-parms$h2*2*parms$g*m^2*(m-parms$theta)
+                                  m^2)*n)*2*B%*%n/(sum(n)*sum(n))-parms$h2*2*parms$g*parms$sigma^2*(m-parms$theta)
     
-    return(list(c(dndt,dmdt)))
+    return(list(c(dndt1,dmdt1)))
   }
 }
 
@@ -245,29 +245,35 @@ We can now run the model for $10^7$ time units. The code below generates a plot,
 
 First we show for pairwise species competition model
 
-```{r pairwise, fig.align="center", fig.height=6.0, fig.width=4.5, message=FALSE, warning=FALSE, out.width="90%"}
-set.seed(54321) ## set random seed (for reproducibility)
+```{r pairwise}
+#set.seed(54321) ##set random seed (for reproducibility)
 # number of species
-S <- 10
+S <- 15
 x0 <- rep(runif(S))
 x0 <- x0/sum(x0)
 sum(x0)
 
-m<-runif(S,-0.1,0.1) # initial random trait values
+m<-runif(S,-0.5,0.5) # initial random trait values
 sigma<-runif(S,0.002,0.005) #trait vairance
-w=1 # parameter that captures the strength of competition
+w=0.8# parameter that captures the strength of competition
 h2<-runif(S,0.15,0.15) #heritabilies of mean trait value
-g<-0.001 #strength in the mortality curve
+g<-0.5*10^-4 #strength in the mortality curve
 theta<-0 #optimum mortality value
 interaction = "pairwise" #pairwise or HOI
 
+
 pars<-list( S=S,h2=h2,w=w,sigma=sigma,theta=theta, g=g,interaction=interaction, threshold = 1e-9) #
 ic <- c(x0,m) #initial density values
-times <- seq(0, 1e9, length=1000)
+tmax<-1e8
+times <- seq(0, tmax, length=1000)
 
 ode(func=eqs, y=ic, parms=pars, times=times) %>% 
-  organize_results(pars) %>% plot_all(1e9)
+  organize_results(pars) %>% plot_all(tmax)
 ```
+
+
+
+
 
 
 
@@ -277,106 +283,31 @@ We now show for the HOI evolutionary model for time of $10^6$ time points for $5
 
 
 ```{r HOI, fig.align="center", fig.height=6.0, fig.width=4.5, message=FALSE, warning=FALSE, out.width="90%"}
-set.seed(54321) ## set random seed (for reproducibility)
+   ## set random seed (for reproducibility)
 # number of species
 S <- 10
 x0 <- rep(runif(S))
 x0 <- x0/sum(x0)
 
 
-m<-runif(S,-0.1,0.1) # initial random trait values
-sigma<-runif(S,0.02,0.05) #trait vairance
-w=1 # parameter that captures the strength of competition
+m<-runif(S,-0.5,0.5) # initial random trait values
+sigma<-runif(S,0.002,0.005) #trait vairance
+w=0.8 # parameter that captures the strength of competition
 h2<-runif(S,0.15,0.15) #heritabilies of mean trait value
-g<-0.001 #strength in the mortality curve
+g<-0.5*10^-4 #strength in the mortality curve
 theta<-0 #optimum mortality value
 interaction = "HOI" #pairwise or HOI
 
 
 pars<-list( S=S,h2=h2,w=w,sigma=sigma,theta=theta, g=g,interaction=interaction, threshold = 1e-9) #
 ic <- c(x0,m) #initial density values
-times <- seq(0, 1e7, length=500)
-
-ode(func=eqs, y=ic, parms=pars, times=times) %>% 
-  organize_results(pars) %>% 
-  plot_all(1e7)
-```
-
-
-
-```{r ind variation, fig.align="center", fig.height=3, fig.width=4, message=FALSE, warning=FALSE, out.width="50%"}
-
-set.seed(54321) ## set random seed (for reproducibility)
-# number of species
-S <- 15
-x0 <- rep(runif(S))
-x0 <- x0/sum(x0)
-
-
-m<-runif(S,-1,1) # initial random trait values
-sigma<-runif(S,0.0001,0.0005) #trait vairance
-w=1 # parameter that captures the strength of competition
-h2<-runif(S,0.15,0.15) #heritabilies of mean trait value
-g<-0.0005 #strength in the mortality curve
-theta<-0 #optimum mortality value
-interaction = "pairwise" #pairwise or HOI
-
-pars<-list( S=S,h2=h2,w=w,sigma=sigma,theta=theta, g=g,interaction=interaction, threshold = 1e-9) #
-ic <- c(x0,m) #initial density values
-tmax=1e7
+tmax<-1e8
 times <- seq(0, tmax, length=1000)
 
-## set up factorial numerical experiment, with seven different intraspecific
-## std dev levels, and five replicates for each
-fact <- expand.grid("sigma"= c("low","medium","high"),
-                    "random_seed"=4127+(1:20)*100) %>%
-  as_tibble %>% ## convert data frame to tibble
-  mutate(`sp_richness`=0,
-         `CV_Trait`= 0)
-
-
-for (r in 1:nrow(fact)) { ## for each parameterization:
-  ## set up simulation with intraspecific variation
-  if(fact$sigma[r] == "low"){ sigma = runif(S, 0.0004,0.003)}
-  else if(fact$sigma[r] == "medium") {sigma= runif(S,0.003,0.009) }
-  else if(fact$sigma[r] == "high") {sigma = runif(S, 0.01,0.05)}
-  
-  pars<-list( S=S,h2=h2,w=w,sigma=sigma,theta=theta, 
-            g=g,interaction=interaction, threshold = 1e-9) #
-                 #rep(fact1$sigma[r], S)+0.0003*runif(S, -1, 1))
- 
-  muinit <- runif(S, -0.5, 0.5) ## initial species trait means
-  sol <- ode(func=eqs, y=c(x0,m), parms=pars, times=times) %>%
-    organize_results(pars) %>% ## solve ODEs & put results in tidy table
-    filter(time==tmax) %>% ## keep data for only the final point in time
-    filter(n>1e-9) ## keep only those species with density above a threshold
-  fact$sp_richness[r]=nrow(sol)
-  fact$CV_Trait[r] = IntravarCV(sol)
-  print(r)
-
-}
-
-plot.rich<-ggplot(data= fact, aes(y = sp_richness,
-                                  x = sigma, color= sigma )) +
-  geom_boxplot(alpha=0.5)+
-  geom_point(pch = 16,alpha=0.5, position = position_jitterdodge())+ 
-  ylab("Species richness")+
-  theme_classic()+ylim(c(0,16))+xlab("")+
-  theme(plot.title = element_text(size = 10,   face = "bold"),
-        text = element_text(size = 10 ),
-        axis.title = element_text(face="bold"),legend.position = "none") 
-plot.rich
-
-
-plot.cv<-ggplot(data= fact, aes(y = CV_Trait,
-                                  x = sigma, color= sigma )) +
-  geom_boxplot(alpha=0.5)+
-  geom_point(pch = 16,alpha=0.5, position = position_jitterdodge())+ 
-  ylab("Species richness")+
-  theme_classic()+xlab("")+ylim(c(-200,2000))+
-  theme(plot.title = element_text(size = 10,   face = "bold"),
-        text = element_text(size = 10 ),
-        axis.title = element_text(face="bold"),legend.position = "none") 
-plot.cv
-
+d<-ode(func=eqs, y=ic, parms=pars, times=times) %>% 
+  organize_results(pars) %>% 
+  plot_all(tmax)
+d
 ```
+
+
